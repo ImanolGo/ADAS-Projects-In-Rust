@@ -1,0 +1,33 @@
+# Compiled files
+*.o
+*.so
+*.rlib
+*.rmeta
+
+# Executables
+target/
+Cargo.lock
+
+# IDE - Visual Studio Code
+.vscode/
+
+# IDE - IntelliJ
+.idea/
+
+# Backup files
+*.swp
+*.bak
+*.tmp
+
+# Logs
+*.log
+
+# Data files
+*.dat
+*.csv
+
+# Temporary files
+*.tmp
+
+# Other unwanted files
+.DS_Store
