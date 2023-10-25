@@ -8,6 +8,9 @@
 target/
 Cargo.lock
 
+# Data
+data/
+
 # IDE - Visual Studio Code
 .vscode/
 
