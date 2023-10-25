@@ -1,0 +1,10 @@
+[package]
+name = "lane_detection_adas"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+opencv = "0.85.3"
+
+[features]
+default = []
