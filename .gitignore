@@ -9,7 +9,7 @@ target/
 Cargo.lock
 
 # Data
-data/
+*.mp4
 
 # IDE - Visual Studio Code
 .vscode/

@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Install required packages
+sudo pacman -S llvm clang opencv
+
 # Create the main directory
 mkdir ADAS-Projects-In-Rust
 cd ADAS-Projects-In-Rust
