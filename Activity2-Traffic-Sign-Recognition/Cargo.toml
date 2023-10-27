@@ -3,17 +3,10 @@ name = "traffic_sign_recognition"
 version = "0.1.0"
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-opencv = "0.57"         # Bindings for OpenCV. Ensure you have OpenCV installed in your system.
-tract-onnx = "0.15"    # For using ONNX models with tract. Ensure your model is exported as ONNX format.
-serde = "1.0"          # If you need serialization/deserialization, often used with datasets.
-serde_derive = "1.0"
-serde_json = "1.0"
+image = "0.23"
+tract-onnx = "0.12"
+glob = "0.3"
 
-[build-dependencies]
-cc = "1.0"             # Required for building some packages from source, such as opencv.
-
-[features]
-default = []
+[profile.release]
+opt-level = 3
