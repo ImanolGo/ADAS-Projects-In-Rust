@@ -27,14 +27,18 @@ fn main() -> opencv::Result<()> {
     let mut masked_edges = core::Mat::default();// Edge-detected version with region of interest
     let mut lines = core::Vector::<core::Vec4i>::new();  // Detected lines in the image
 
+    // Capture the first frame
+    cap.read(&mut frame)?;
+
     // Define vertices of the region of interest (trapezoidal shape) for lane detection
     let roi_vertices = [
         core::Point::new(0, frame.rows()),                 // Bottom-left
-        core::Point::new(frame.cols() / 3, frame.rows() / 2),   // Top-left
-        core::Point::new(2 * frame.cols() / 3, frame.rows() / 2), // Top-right
+        core::Point::new(3*frame.cols() / 7, frame.rows() / 2 + frame.rows() / 12),   // Top-left
+        core::Point::new(9 * frame.cols() / 12, frame.rows() / 2 + frame.rows() / 12), // Top-right
         core::Point::new(frame.cols(), frame.rows()),      // Bottom-right
     ];
-    
+
+
     loop {
         // Read a new frame from the video
         cap.read(&mut frame)?;
@@ -43,6 +47,7 @@ fn main() -> opencv::Result<()> {
         if frame.size()?.width <= 0 {
             break;
         }
+
 
         // Convert the original frame to grayscale for edge detection
         imgproc::cvt_color(&frame, &mut gray, imgproc::COLOR_BGR2GRAY, 0)?;
@@ -74,20 +79,26 @@ fn main() -> opencv::Result<()> {
         )?;
         
         
+        // highgui::imshow("ROI Mask", &mask)?;
+        // highgui::wait_key(0)?;
+
         
-        // Apply the mask to the edge-detected image to keep only the region of interest
-        core::bitwise_and(&edges, &mask, &mut masked_edges, &core::Mat::default())?;
+        
+       // Apply the mask to the edge-detected image to keep only the region of interest
+       core::bitwise_and(&edges, &mask, &mut masked_edges, &core::Mat::default())?;
 
-        // Detect lines in the masked image using the Hough transform
-        imgproc::hough_lines_p(&edges, &mut lines, 1.0, core::CV_PI / 180.0, 50, 50.0, 10.0)?;
+       // Detect lines in the masked image using the Hough transform
+       imgproc::hough_lines_p(&masked_edges, &mut lines, 1.0, core::CV_PI / 180.0, 50, 50.0, 10.0)?;
 
-        // Draw detected lines on the original frame
+
+       // Draw detected lines on the original frame
         for line in lines.iter() {
             imgproc::line(&mut frame, core::Point::new(line[0], line[1]), core::Point::new(line[2], line[3]), core::Scalar::new(0.0, 255.0, 0.0, 0.0), 2, imgproc::LINE_8, 0)?;
         }
+    
 
-        // Display the frame with detected lines
-        highgui::imshow("Lane Detection", &mut frame)?;
+       // Display the frame with detected lines
+       highgui::imshow("Lane Detection", &mut frame)?;
 
         // Wait for 10ms and exit loop if a key is pressed
         if highgui::wait_key(10)? > 0 {
