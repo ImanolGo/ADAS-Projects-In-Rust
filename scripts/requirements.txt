@@ -1,0 +1,7 @@
+numpy
+tensorflow==2.1
+keras==2.1.6
+pillow
+keras2onnx==1.7.0
+onnxruntime
+h5py==2.10.0

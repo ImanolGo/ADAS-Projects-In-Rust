@@ -1,8 +1,12 @@
-import tf2onnx
+from tensorflow import keras
+import keras2onnx
 
-# Convert the model
-model_proto, _ = tf2onnx.convert.from_keras(model_path="../Models/traffic-sign-recognition-model.h5")
+# Load your Keras model
+model = load_model('./data/Models/traffic-sign-recognition-model.h5')
 
-# Save the ONNX model
-with open("traffic-sign-recognition-model.onnx", "wb") as f:
-    f.write(model_proto.SerializeToString())
+# Convert the model to ONNX format
+onnx_model = keras2onnx.convert_keras(model, model.name)
+
+# Save the ONNX model to disk
+
+onnx.save_model(onnx_model, 'traffic-sign-recognition-model.onnx')
