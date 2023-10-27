@@ -17,7 +17,8 @@ This coding activity focuses on the development of a Traffic Sign Recognition sy
 - **Programming Language**: Rust
 - **Computer Vision Library**: [Your Choice]
 - **Machine Learning / Deep Learning Libraries**: [Your Choice]
-- **Data Source**: [Public Dataset]
+- **Data Source**: [GTSRB](https://benchmark.ini.rub.de/)
+- **Model**: Pretaiend model from [GTSRB---German-Traffic-Sign-Recognition](https://github.com/sonu275981/GTSRB---German-Traffic-Sign-Recognition)
 
 ## 📚 References
 
