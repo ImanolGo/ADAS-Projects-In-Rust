@@ -5,43 +5,46 @@ use tract_onnx::prelude::*;
 use image::GenericImageView;
 use std::fs;
 
-fn main() {
+fn main() -> TractResult<()> {
     // Load the ONNX model
     let model = tract_onnx::onnx()
-        .model_for_path("../../data/Models/traffic-sign-recognition-model.onnx")
-        .unwrap()
-        .with_input_fact(0, InferenceFact::dt_shape(f32::datum_type(), tvec!(1, 3, 30, 30)))
-        .unwrap()
-        .into_optimized()
-        .unwrap()
-        .into_runnable()
-        .unwrap();
+        .model_for_path("../data/Models/traffic-sign-recognition-model.onnx")?
+        .into_optimized()?
+        .into_runnable()?;
 
     // Get list of files in the Tests directory
-    let paths = fs::read_dir("../../data/Test").unwrap();
+    let paths = fs::read_dir("../data/Test").unwrap();
 
     for path in paths {
         let img_path = path.unwrap().path();
-        if img_path.extension().unwrap() == "jpg" {
+        if img_path.extension().unwrap() == "png" {
             // Load and preprocess the image
-            let img = image::open(img_path).unwrap().resize(30, 30, image::imageops::FilterType::Nearest);
+            let img = image::open(&img_path)?.resize(30, 30, image::imageops::FilterType::Nearest);
+
             let vec: Vec<f32> = img.pixels().flat_map(|(_, _, rgb)| {
                 vec![rgb[0] as f32, rgb[1] as f32, rgb[2] as f32]
             }).collect();
 
+            // Convert the Vec<f32> into an array (assuming the size is 1*3*30*30 = 2700)
+            let array: ndarray::Array<f32, _> = ndarray::Array::from_shape_vec((1, 3, 30, 30), vec)?;
+
+            // Convert the array into TValue
+            let tensor = array.into_tensor();
+            println!("Tensor shape: {:?}", tensor.shape());
+
             // Run the model
-            let output = model.run(tvec!(vec)).unwrap();
+            let output = model.run(tvec![tensor.into()])?.remove(0);
 
             // Get the maximum value's index = class id
-            let class_id = output[0]
-                .to_array_view::<f32>()
-                .unwrap()
+            let class_id = output
+                .to_array_view::<f32>()?
                 .iter()
                 .enumerate()
                 .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
                 .map(|(index, _)| index)
                 .unwrap();
 
+            println!("Class ID: {}", class_id);
             // Map the class id to its label
             let labels = [
                 "Speed limit (20km/h)",
@@ -88,9 +91,9 @@ fn main() {
                 "End of no passing",
                 "End no passing veh > 3.5 tons"
             ];
-
-
             println!("File: {:?}, Predicted: {}", img_path, labels[class_id]);
         }
     }
+
+    Ok(())
 }
