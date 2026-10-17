@@ -19,6 +19,27 @@ pub fn default_model() -> PathBuf {
     data_dir().join("Models").join("traffic-sign-recognition-model.onnx")
 }
 
+/// Directory holding the YOLOX ONNX models (`scripts/fetch-data.sh`).
+pub fn detector_dir() -> PathBuf {
+    data_dir().join("Models").join("yolo")
+}
+
+/// The YOLOX-Nano detector: ~4 MB, fast enough for video on a CPU.
+pub fn default_detector() -> PathBuf {
+    detector_dir().join("yolox_nano.onnx")
+}
+
+/// A named YOLOX preset: `nano` (416), `tiny` (416) or `s` (640).
+pub fn detector_preset(name: &str) -> Option<PathBuf> {
+    let file = match name {
+        "nano" => "yolox_nano.onnx",
+        "tiny" => "yolox_tiny.onnx",
+        "s" | "small" => "yolox_s.onnx",
+        _ => return None,
+    };
+    Some(detector_dir().join(file))
+}
+
 /// The dashcam clip used by the lane and integration demos (see `scripts/fetch-data.sh`).
 pub fn default_video() -> PathBuf {
     data_dir().join("video.mp4")

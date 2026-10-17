@@ -15,11 +15,13 @@ The world is shifting towards automation and intelligent systems, and the automo
 You need Rust 1.82+ and `ffmpeg` (for reading and writing video). No OpenCV, no Python, no system libraries.
 
 ```bash
-./scripts/fetch-data.sh                                         # sample dashcam clips → data/
+./scripts/fetch-data.sh                                         # dashcam clips + YOLOX models → data/
 cargo run --release -p adas_drive                               # everything together → output/drive.mp4
 cargo run --release -p lane_detection -- --debug                # Activity 1 → output/lanes.mp4
 cargo run --release -p traffic_sign_recognition                 # Activity 2: accuracy on data/Test
 cargo run --release -p speed_limit_recognition -- --demo        # Activity 3: limit tracking, no data needed
+cargo run --release -p object_detection                         # Activity 4: YOLOX → output/detect.mp4
+cargo run --release -p street_light_detection -- --preset nano  # Activity 5: traffic lights
 cargo run --release -p instrument_cluster                       # Activity 6 → output/cluster.gif
 cargo test --workspace
 ```
@@ -33,8 +35,8 @@ Every binary takes `--help`. Outputs can be `.mp4`, `.webm`, `.webp` (small anim
 | 1 | [Lane Detection](./Activity1-Lane-Detection/README.md) | ✅ lanes + departure warning | `-p lane_detection` |
 | 2 | [Traffic Sign Recognition](./Activity2-Traffic-Sign-Recognition/README.md) | ✅ 98% on the bundled GTSRB test images | `-p traffic_sign_recognition` |
 | 3 | [Speed Limit Recognition](./Activity3-Speed-Limit-Recognition/README.md) | ✅ multi-frame confirmation | `-p speed_limit_recognition` |
-| 4 | [Object Detection using YOLOv3](./Activity4-Object-Detection-YOLOv3/README.md) | ⏳ not started | |
-| 5 | [Street Light Detection and Recognition](./Activity5-Street-Light-Detection/README.md) | ⏳ not started | |
+| 4 | [Object Detection](./Activity4-Object-Detection/README.md) | ✅ YOLOX (ONNX + tract) | `-p object_detection` |
+| 5 | [Street Light Detection](./Activity5-Street-Light-Detection/README.md) | ✅ traffic-light colour | `-p street_light_detection` |
 | 6 | [Instrument Cluster Development](./Activity6-Instrument-Cluster/README.md) | ✅ rendered cluster | `-p instrument_cluster` |
 | 7 | [Integration of All Systems](./Activity7-Integration/README.md) | ✅ lanes + signs + cluster on video | `-p adas_drive` |
 
@@ -44,18 +46,22 @@ Every binary takes `--help`. Outputs can be `.mp4`, `.webm`, `.webp` (small anim
 adas-core/            shared library, used by every activity
   lanes.rs            paint mask → Canny → ROI → banded Hough → smoothing → departure
   classifier.rs       GTSRB CNN (ONNX) run by tract, pure Rust
+  detector.rs         YOLOX object detection (ONNX) run by tract
+  coco.rs             the 80 COCO class names + the driving-relevant subset
+  traffic_light.rs    traffic-light colour: RED / AMBER / GREEN / OFF
   speed.rs            speed-limit tracker: votes over frames, "end of limit" signs
   cluster.rs          the instrument cluster
   render.rs           drawing (tiny-skia), text (ab_glyph), German road signs
   video.rs            video in/out through ffmpeg, or image folders
 Activity*/            one small binary each
-data/                 model, 51 GTSRB test images + labels, downloaded clips
+data/                 model, 51 GTSRB test images + labels, downloaded clips and YOLOX models
 ```
 
 ## ⚙ Technologies
 
 - **Language**: Rust (one Cargo workspace, `Cargo.lock` committed)
-- **Inference**: [tract](https://github.com/sonos/tract) runs the Keras CNN exported to ONNX
+- **Inference**: [tract](https://github.com/sonos/tract) runs the Keras CNN *and* YOLOX, from ONNX, in pure Rust
+- **Detection**: [YOLOX](https://github.com/Megvii-BaseDetection/YOLOX) (Apache-2.0) for Activities 4 and 5
 - **Image processing**: [image](https://crates.io/crates/image), [imageproc](https://crates.io/crates/imageproc) (Canny), a small custom Hough transform
 - **Drawing**: [tiny-skia](https://crates.io/crates/tiny-skia), [ab_glyph](https://crates.io/crates/ab_glyph) with Barlow Semi Condensed (OFL)
 - **Video**: the `ffmpeg` command-line tool

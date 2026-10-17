@@ -39,4 +39,13 @@ fetch_with_git() {
 
 fetch_with_curl 2>/dev/null || { echo "Direct download failed, trying git…"; fetch_with_git; }
 
+# YOLOX detectors for Activities 4 and 5 (Apache-2.0). Nano is ~4 MB and fast
+# enough for video; tiny and s trade speed for accuracy.
+YOLOX_BASE="https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0"
+mkdir -p Models/yolo
+for model in yolox_nano.onnx yolox_tiny.onnx yolox_s.onnx; do
+  [[ -s "Models/yolo/$model" ]] && { echo "✓ Models/yolo/$model (already there)"; continue; }
+  curl -fsSL -o "Models/yolo/$model" "$YOLOX_BASE/$model" && echo "✓ Models/yolo/$model"
+done
+
 command -v ffmpeg >/dev/null || echo "Note: install ffmpeg to read and write video (apt install ffmpeg / brew install ffmpeg)."
