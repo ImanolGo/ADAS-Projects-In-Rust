@@ -6,6 +6,7 @@ use image::{Rgb, RgbImage};
 use tiny_skia::{Color, FillRule, Paint, PathBuilder, Pixmap, Rect, Stroke, Transform};
 
 use crate::paths::{FONT_BOLD, FONT_SEMIBOLD};
+use crate::traffic_light::LightColor;
 
 /// The two compiled-in faces (Barlow Semi Condensed: DIN-like, like road signs).
 pub struct Fonts {
@@ -307,6 +308,30 @@ pub fn end_of_limit_sign(pix: &mut Pixmap, fonts: &Fonts, cx: f32, cy: f32, r: f
         );
     }
 }
+
+/// A three-lamp traffic-light head (red / amber / green) with `lit` glowing.
+///
+/// `r` is the lamp spacing scale: the head is about 2.1r wide and 5.8r tall,
+/// centred on `(cx, cy)`.
+pub fn traffic_light_head(pix: &mut Pixmap, cx: f32, cy: f32, r: f32, lit: LightColor) {
+    let lamp_r = r * 0.72;
+    let step = r * 1.85;
+    let (hw, hh) = (r * 1.05, step + lamp_r + r * 0.35);
+    fill_rounded_rect(pix, cx - hw, cy - hh, hw * 2.0, hh * 2.0, r * 0.45, rgba(26, 28, 32, 1.0));
+    for (colour, k) in [(LightColor::Red, -1.0f32), (LightColor::Amber, 0.0), (LightColor::Green, 1.0)] {
+        let ly = cy + k * step;
+        let (cr, cg, cb) = colour.rgb();
+        if colour == lit {
+            fill_circle(pix, cx, ly, lamp_r * 1.6, rgba(cr, cg, cb, 0.22));
+            fill_circle(pix, cx, ly, lamp_r, rgba(cr, cg, cb, 1.0));
+        } else {
+            fill_circle(pix, cx, ly, lamp_r, rgba(cr / 6, cg / 6, cb / 6, 1.0));
+        }
+    }
+}
+
+/// The head's half-height in units of `r`, so callers can hang it from a post.
+pub const TRAFFIC_LIGHT_HALF_HEIGHT: f32 = 2.92;
 
 #[cfg(test)]
 mod tests {

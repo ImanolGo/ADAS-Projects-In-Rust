@@ -54,4 +54,6 @@ cargo run --release -p object_detection -- --input street.jpg --gallery output/d
 
 ### Results
 
+![YOLOX-Nano on a dashcam clip: a car boxed at 47%](../docs/detect.webp)
+
 On frames of the bundled dashcam clips YOLOX-Nano finds the cars and trucks in ~40 ms each on a CPU. Because it is the smallest model, it makes the occasional mistake (a bright billboard mistaken for a traffic light, for instance) — exactly the trade-off `--preset tiny` or `--preset s` is there to fix.
