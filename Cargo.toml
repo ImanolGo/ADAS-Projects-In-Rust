@@ -1,0 +1,38 @@
+[workspace]
+resolver = "2"
+members = [
+    "adas-core",
+    "Activity1-Lane-Detection",
+    "Activity2-Traffic-Sign-Recognition",
+    "Activity3-Speed-Limit-Recognition",
+    "Activity6-Instrument-Cluster",
+    "Activity7-Integration",
+]
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.82"
+license = "MIT"
+
+[workspace.dependencies]
+adas-core = { path = "adas-core" }
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+csv = "1"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+imageproc = { version = "0.27", default-features = false }
+serde = { version = "1", features = ["derive"] }
+tiny-skia = "0.12"
+ab_glyph = "0.2"
+tract-onnx = "0.23"
+
+# Image processing and inference are painfully slow unoptimised; keep debug
+# builds usable for `cargo run` without --release.
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.dev]
+opt-level = 1
+
+[profile.release]
+opt-level = 3

@@ -1,36 +1,24 @@
-# Compiled files
-*.o
-*.so
-*.rlib
-*.rmeta
-
-# Executables
+# Build output. Cargo.lock IS committed: these are binaries, and an unpinned
+# dependency tree is exactly what broke the original build (tract → time 0.3.23).
 target/
-Cargo.lock
 
-# Data
+# Generated results
+output/
+
+# Downloaded sample videos (scripts/fetch-data.sh)
 *.mp4
+*.webm
 
-# IDE - Visual Studio Code
+# Data files, except the GTSRB labels for the bundled test images
+*.dat
+*.csv
+!data/Test.csv
+
+# Editors and OS
 .vscode/
-
-# IDE - IntelliJ
 .idea/
-
-# Backup files
 *.swp
 *.bak
 *.tmp
-
-# Logs
 *.log
-
-# Data files
-*.dat
-*.csv
-
-# Temporary files
-*.tmp
-
-# Other unwanted files
 .DS_Store
