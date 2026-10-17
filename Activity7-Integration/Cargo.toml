@@ -1,0 +1,14 @@
+[package]
+name = "adas_drive"
+version = "0.2.0"
+description = "Activity 7: lanes, sign recognition and the instrument cluster on a dashcam video"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+adas-core.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+image.workspace = true
+tiny-skia.workspace = true
