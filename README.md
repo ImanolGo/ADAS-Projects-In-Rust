@@ -1,6 +1,6 @@
 # 🚗 ADAS Projects In Rust 🦀
 
-![Activity 7: lane tracking, live speed-limit recognition and the instrument cluster on a dashcam clip](docs/drive.webp)
+![Activity 7: lane tracking, YOLOX object detection, speed-limit and traffic-light recognition, and the instrument cluster on a dashcam clip](docs/drive.webp)
 
 ## Introduction
 

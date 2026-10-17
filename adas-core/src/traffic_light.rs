@@ -240,22 +240,25 @@ pub fn detect_lights(image: &RgbImage, cfg: &LightConfig) -> Vec<LightCandidate>
     out
 }
 
-/// Debounce: only change state after `needed` fresh frames agree.
+/// Debounce: only change state after `needed` fresh frames agree, and drop back
+/// to `Unknown` once the light has been out of view for that many frames.
 #[derive(Clone, Debug)]
 pub struct LightTracker {
     current: LightColor,
     streak: LightColor,
     streak_len: usize,
+    lost: usize,
     needed: usize,
 }
 
 impl LightTracker {
-    /// Start `Unknoen`; require `needed` agreeing frames to switch.
+    /// Start `Unknown`; require `needed` agreeing frames to switch.
     pub fn new(needed: usize) -> Self {
         Self {
             current: LightColor::Unknown,
             streak: LightColor::Unknown,
             streak_len: 0,
+            lost: 0,
             needed: needed.max(1),
         }
     }
@@ -269,8 +272,15 @@ impl LightTracker {
         if !reading.is_lit() {
             self.streak_len = 0;
             self.streak = LightColor::Unknown;
-            return false; // a dark frame never forces a change
+            self.lost += 1;
+            if self.lost >= self.needed && self.current != LightColor::Unknown {
+                self.current = LightColor::Unknown;
+                self.lost = 0;
+                return true;
+            }
+            return false; // a dark frame never forces a colour change
         }
+        self.lost = 0;
         if reading.colour == self.streak {
             self.streak_len += 1;
         } else {

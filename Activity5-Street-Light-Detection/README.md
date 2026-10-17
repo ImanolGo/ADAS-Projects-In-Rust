@@ -39,9 +39,11 @@ A traffic-light crop rarely contains just the lamp: there is housing, a pole and
 
 ### Why a tracker, like Activity 3
 
-One frame is not a decision. A flickering reflection or a single misread crop should not flip the display, so `LightTracker` only changes the confirmed state after `--confirm` consecutive frames agree, and a dark frame never forces a change.
+One frame is not a decision. A flickering reflection or a single misread crop should not flip the display, so `LightTracker` only changes the confirmed state after `--confirm` consecutive frames agree, and falls back to no signal once the light has been out of view for that many frames.
 
 ### Results
+
+![A green left-turn signal in Kumasi, boxed by YOLOX and read as GREEN 100%](../docs/lights.webp)
 
 With `--preset nano` on Wikimedia street photos, the green left-turn signal in a Kumasi intersection is read as **GREEN 100%**, amber lamps in Inuvik as **AMBER**. YOLOX-Nano occasionally boxes a bright billboard as a "traffic light"; the colour read of that box is still consistent (an orange advert reads amber), and `--preset tiny`/`s` reduce the false positives.
 

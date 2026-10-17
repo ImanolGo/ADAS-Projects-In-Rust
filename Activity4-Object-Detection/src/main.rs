@@ -131,7 +131,8 @@ fn main() -> Result<()> {
         }
         let mut pix = render::pixmap_from_rgb(&frame);
         overlay::draw_detections(&mut pix, &fonts, &detections);
-        overlay::caption(&mut pix, &fonts, &format!("{} objects", detections.len()));
+        let n = detections.len();
+        overlay::caption(&mut pix, &fonts, &format!("{n} object{}", if n == 1 { "" } else { "s" }));
         let annotated = render::rgb_from_pixmap(&pix);
         sink.write(&annotated)?;
         if want_gallery && gallery.len() < 12 {
