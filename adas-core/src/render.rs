@@ -106,6 +106,15 @@ pub fn fill_rounded_rect(pix: &mut Pixmap, x: f32, y: f32, w: f32, h: f32, radiu
     }
 }
 
+/// Outline a rectangle.
+pub fn stroke_rect(pix: &mut Pixmap, x: f32, y: f32, w: f32, h: f32, width: f32, color: Color) {
+    if let Some(rect) = Rect::from_xywh(x, y, w.max(0.1), h.max(0.1)) {
+        let path = PathBuilder::from_rect(rect);
+        let stroke = Stroke { width, ..Stroke::default() };
+        pix.stroke_path(&path, &paint(color), &stroke, Transform::identity(), None);
+    }
+}
+
 pub fn polyline(pix: &mut Pixmap, points: &[(f32, f32)], width: f32, color: Color, round: bool) {
     let Some((first, rest)) = points.split_first() else { return };
     let mut pb = PathBuilder::new();

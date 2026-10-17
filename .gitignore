@@ -14,6 +14,9 @@ output/
 *.csv
 !data/Test.csv
 
+# Downloaded YOLOX detectors (scripts/fetch-data.sh)
+data/Models/yolo/
+
 # Editors and OS
 .vscode/
 .idea/

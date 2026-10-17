@@ -5,6 +5,8 @@ members = [
     "Activity1-Lane-Detection",
     "Activity2-Traffic-Sign-Recognition",
     "Activity3-Speed-Limit-Recognition",
+    "Activity4-Object-Detection",
+    "Activity5-Street-Light-Detection",
     "Activity6-Instrument-Cluster",
     "Activity7-Integration",
 ]

@@ -906,6 +906,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "object_detection"
+version = "0.2.0"
+dependencies = [
+ "adas-core",
+ "anyhow",
+ "clap",
+ "image",
+ "tiny-skia",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1270,6 +1281,16 @@ dependencies = [
  "clap",
  "image",
  "tiny-skia",
+]
+
+[[package]]
+name = "street_light_detection"
+version = "0.2.0"
+dependencies = [
+ "adas-core",
+ "anyhow",
+ "clap",
+ "image",
 ]
 
 [[package]]
