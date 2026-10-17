@@ -1,0 +1,14 @@
+[package]
+name = "instrument_cluster"
+version = "0.2.0"
+description = "Activity 6: the ADAS instrument cluster"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+adas-core.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+image.workspace = true
+tiny-skia.workspace = true

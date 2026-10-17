@@ -1,91 +1,181 @@
-extern crate tract_onnx;
-extern crate image;
+//! Activity 3: speed-limit recognition over time.
+//!
+//! The classifier answers per image; a car needs *the limit in force*. This
+//! binary feeds a sequence of frames through the classifier and a
+//! [`SpeedLimitTracker`], which only changes the limit when several recent
+//! frames agree, and which understands "end of limit" signs.
+//!
+//! ```text
+//! cargo run --release -p speed_limit_recognition -- --demo        # no data needed
+//! cargo run --release -p speed_limit_recognition -- frames/       # your own crops, in order
+//! ```
 
-use tract_onnx::prelude::*;
-use image::GenericImageView;
-use std::fs;
 use std::path::PathBuf;
 
-fn get_speed_limit_from_sign(class_id: usize) -> Option<u32> {
-    // A mock-up dictionary of class ids to speed limits
-    let speed_limit_signs: std::collections::HashMap<usize, u32> = vec![
-        // (class_id, speed_limit)
-        (0, 20),
-        (1, 30),
-        (2, 50),
-        (3, 60),
-        (4, 70),
-        (5, 80),
-        (7, 100),
-        (8, 120),
-        // ... add as many as you have in your model
-    ].into_iter().collect();
+use adas_core::render::{self, rgba, Fonts, CROP_PER_RADIUS};
+use adas_core::speed::{LimitEvent, SpeedLimitTracker, TrackerConfig};
+use adas_core::{paths, Prediction, SignClassifier};
+use anyhow::{bail, Result};
+use clap::Parser;
+use image::RgbImage;
 
-    // Return the speed limit if the class id is for a speed limit sign
-    speed_limit_signs.get(&class_id).copied()
+#[derive(Parser)]
+#[command(about = "Track the speed limit in force from a sequence of sign images")]
+struct Args {
+    /// Folder of sign crops, read in file-name order as consecutive frames.
+    input: Option<PathBuf>,
+    /// Run on a synthetic drive past rendered signs instead (no data needed).
+    #[arg(long)]
+    demo: bool,
+    #[arg(long)]
+    model: Option<PathBuf>,
+    /// Ignore predictions below this probability.
+    #[arg(long, default_value_t = 0.6)]
+    min_confidence: f32,
+    /// Frames to vote over.
+    #[arg(long, default_value_t = 9)]
+    window: usize,
+    /// Votes needed to change the limit.
+    #[arg(long, default_value_t = 5)]
+    votes: usize,
+    /// The winning reading must lead the runner-up by this many votes.
+    #[arg(long, default_value_t = 2)]
+    margin: usize,
 }
 
-fn main() {
-    // Load the ONNX model
-    let model = tract_onnx::onnx()
-        .model_for_path("../data/Models/traffic-sign-recognition-model.onnx").unwrap()
-        .into_optimized().unwrap()
-        .into_runnable().unwrap();
+/// One frame of the drive: a sign crop, or nothing in view.
+enum Frame {
+    Sign(RgbImage),
+    Empty,
+}
 
-     // Get list of file paths in the directory
-     let mut paths: Vec<PathBuf> = fs::read_dir("../data/Test")
-     .unwrap()
-     .map(|res| res.map(|e| e.path()))
-     .collect::<Result<Vec<_>, std::io::Error>>()
-     .unwrap();
-
-    // Sort the paths
-    paths.sort();
-
-
-    // Iterate over the sorted paths
-    for img_path in paths {
-        if img_path.extension().map(|ext| ext == "png").unwrap_or(false) {
-            // Load the image
-            let img = image::open(img_path.clone()).unwrap();
-
-            // Resize the image to 30x30
-            let resized_img = img.resize_exact(30, 30, image::imageops::FilterType::Nearest);
-
-            // Flatten and normalize pixel values
-            let vec: Vec<f32> = resized_img.pixels().flat_map(|(_, _, rgb)| {
-                vec![rgb[0] as f32 / 255.0, rgb[1] as f32 / 255.0, rgb[2] as f32 / 255.0]
-            }).collect();
-
-
-            // Reshape the vector into an ndarray with shape (1, 30, 30, 3) to match Python's (batch, height, width, channels)
-            let array: ndarray::Array4<f32> = ndarray::Array::from_shape_vec((1, 30, 30, 3), vec).unwrap();
-
-            // Convert the array into a tensor
-            let tensor = array.into_dyn().into_tensor();
-
-            // Run the model - the tensor needs to be converted into a TValue
-            let output = model.run(tvec!(tensor.into())).unwrap();
-
-
-            // Process the output as in Python to find the predicted class ID
-            let class_id = output[0]
-                .to_array_view::<f32>()
-                .unwrap()
-                .iter()
-                .enumerate()
-                .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
-                .map(|(index, _)| index)
-                .unwrap();
-
-
-            println!("File: {:?}, Class ID: {}", img_path, class_id);
-
-            if let Some(speed_limit) = get_speed_limit_from_sign(class_id) {
-                println!("The current speed limit is: {} km/h", speed_limit);
+/// A drive past signs, each seen for a few frames as it grows closer.
+/// The 70 is one the model often misreads, so voting has work to do.
+fn demo_frames() -> Vec<(String, Frame)> {
+    let fonts = Fonts::load();
+    let backgrounds = [(118, 138, 112), (150, 168, 196), (96, 98, 96)];
+    let mut frames = Vec::new();
+    let gap = |frames: &mut Vec<(String, Frame)>, n: usize| {
+        frames.extend((0..n).map(|_| ("—".to_string(), Frame::Empty)));
+    };
+    for (i, (name, kmh, end)) in
+        [("30 zone", 30, false), ("70 ahead", 70, false), ("80 ahead", 80, false), ("end of 80", 80, true)]
+            .into_iter()
+            .enumerate()
+    {
+        gap(&mut frames, 3);
+        for step in 0..10 {
+            let r = 9.0 + step as f32 * 2.5; // the sign grows as we approach
+            let side = (r * CROP_PER_RADIUS).round();
+            let bg = backgrounds[(i + step) % backgrounds.len()];
+            let mut pix = tiny_skia::Pixmap::new(side as u32, side as u32).unwrap();
+            pix.fill(rgba(bg.0, bg.1, bg.2, 1.0));
+            if end {
+                render::end_of_limit_sign(&mut pix, &fonts, side / 2.0, side / 2.0, r, kmh);
             } else {
-                println!("The detected sign is not a speed limit sign.");
+                render::speed_sign(&mut pix, &fonts, side / 2.0, side / 2.0, r, kmh);
             }
+            frames.push((name.to_string(), Frame::Sign(render::rgb_from_pixmap(&pix))));
         }
     }
+    gap(&mut frames, 3);
+    frames
+}
+
+fn folder_frames(dir: &PathBuf) -> Result<Vec<(String, Frame)>> {
+    let mut paths: Vec<PathBuf> = std::fs::read_dir(dir)?
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| {
+            p.extension().is_some_and(|e| {
+                ["png", "jpg", "jpeg", "ppm"].contains(&e.to_string_lossy().to_lowercase().as_str())
+            })
+        })
+        .collect();
+    paths.sort();
+    if paths.is_empty() {
+        bail!("no images in {}", dir.display());
+    }
+    paths
+        .into_iter()
+        .map(|p| {
+            Ok((
+                p.file_name().unwrap_or_default().to_string_lossy().into_owned(),
+                Frame::Sign(image::open(&p)?.to_rgb8()),
+            ))
+        })
+        .collect()
+}
+
+fn main() -> Result<()> {
+    let args = Args::parse();
+    let frames = match (&args.input, args.demo) {
+        (_, true) => demo_frames(),
+        (Some(dir), false) => folder_frames(dir)?,
+        (None, false) => bail!("pass a folder of sign images, or --demo"),
+    };
+    let model = SignClassifier::load(args.model.clone().unwrap_or_else(paths::default_model))?;
+    let mut tracker = SpeedLimitTracker::new(TrackerConfig {
+        min_confidence: args.min_confidence,
+        window: args.window,
+        votes: args.votes,
+        margin: args.margin,
+    });
+
+    println!("{:>5}  {:<14} {:<30} {:>5}  limit", "frame", "scene", "camera reads", "conf");
+    let mut events = 0;
+    // Per sighting (demo): (scene, frames, correct reads, limit when it ended).
+    let mut sightings: Vec<(String, usize, usize, Option<u32>)> = Vec::new();
+    for (i, (scene, frame)) in frames.iter().enumerate() {
+        let prediction: Option<Prediction> = match frame {
+            Frame::Sign(img) => Some(model.classify(img)?),
+            Frame::Empty => None,
+        };
+        let event = tracker.observe(prediction.as_ref());
+        let (read, conf) = match &prediction {
+            Some(p) => (p.label().to_string(), format!("{:.0}%", p.confidence * 100.0)),
+            None => ("no sign in view".into(), String::new()),
+        };
+        if let (Some(p), true) = (&prediction, args.demo) {
+            let expected = scene.split_whitespace().find_map(|w| w.parse::<u32>().ok());
+            let correct = if scene.starts_with("end") {
+                p.class_id == 6
+            } else {
+                expected.is_some_and(|k| p.label().contains(&format!("({k}km/h)")))
+            };
+            if sightings.last().is_none_or(|s| &s.0 != scene) {
+                sightings.push((scene.clone(), 0, 0, None));
+            }
+            let current = sightings.last_mut().unwrap();
+            current.1 += 1;
+            current.2 += usize::from(correct);
+        }
+        let limit = tracker.current().map_or("–".into(), |k| k.to_string());
+        let note = match event {
+            Some(LimitEvent::Set(k)) => format!("   ← new limit {k} km/h"),
+            Some(LimitEvent::Cleared) => "   ← limit lifted".into(),
+            None => String::new(),
+        };
+        events += usize::from(event.is_some());
+        if let Some(last) = sightings.last_mut() {
+            last.3 = tracker.current();
+        }
+        println!("{i:>5}  {scene:<14} {read:<30} {conf:>5}  {limit}{note}");
+    }
+    println!("\n{events} limit changes from {} frames.", frames.len());
+    if args.demo {
+        println!("\nHow each sign went:");
+        for (scene, seen, correct, limit) in &sightings {
+            let expected = if scene.starts_with("end") {
+                None
+            } else {
+                scene.split_whitespace().find_map(|w| w.parse::<u32>().ok())
+            };
+            let verdict = if *limit == expected { "✓" } else { "✗" };
+            let shown = limit.map_or("none".to_string(), |k| format!("{k} km/h"));
+            println!("  {verdict} {scene:<10} read correctly in {correct}/{seen} frames → limit {shown}");
+        }
+        println!("\nA sign the model cannot read consistently leaves the old limit in place:");
+        println!("missing a sign is safer than switching to a wrong one.");
+    }
+    Ok(())
 }

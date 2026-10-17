@@ -1,5 +1,7 @@
 # 🚗 ADAS Projects In Rust 🦀
 
+![Activity 7: lane tracking, live speed-limit recognition and the instrument cluster on a dashcam clip](docs/drive.webp)
+
 ## Introduction
 
 Welcome to my repository dedicated to Advanced Driver Assistance Systems (ADAS)! I've recently completed an [ADAS course on Udemy](https://www.udemy.com/course/advanced-driver-assistance-systems/), and I'm excited to share my journey implementing these critical systems using Rust. Why Rust? It offers both performance and safety, essential attributes when we're talking about systems that can save lives on the road.
@@ -8,27 +10,64 @@ Welcome to my repository dedicated to Advanced Driver Assistance Systems (ADAS)!
 
 The world is shifting towards automation and intelligent systems, and the automotive industry is no exception. Advanced Driver Assistance Systems (ADAS) have a profound impact on safety and driving experience. Having specialized in embedded systems and AI in the ADAS division, I see the immense potential and challenges in this field. I chose Rust to push the boundaries of what's possible in terms of performance, safety, and code quality.
 
+## 🚀 Quick Start
+
+You need Rust 1.82+ and `ffmpeg` (for reading and writing video). No OpenCV, no Python, no system libraries.
+
+```bash
+./scripts/fetch-data.sh                                         # sample dashcam clips → data/
+cargo run --release -p adas_drive                               # everything together → output/drive.mp4
+cargo run --release -p lane_detection -- --debug                # Activity 1 → output/lanes.mp4
+cargo run --release -p traffic_sign_recognition                 # Activity 2: accuracy on data/Test
+cargo run --release -p speed_limit_recognition -- --demo        # Activity 3: limit tracking, no data needed
+cargo run --release -p instrument_cluster                       # Activity 6 → output/cluster.gif
+cargo test --workspace
+```
+
+Every binary takes `--help`. Outputs can be `.mp4`, `.webm`, `.webp` (small animations), `.gif`, or a folder of PNGs.
+
 ## 📚 Outline
 
-1. [Lane Detection](./Activity1-Lane-Detection/README.md)
-2. [Traffic Sign Recognition](./Activity2-Traffic-Sign-Recognition/README.md)
-3. [Speed Limit Recognition](./Activity3-Speed-Limit-Recognition/README.md)
-4. [Object Detection using YOLOv3](./Activity4-Object-Detection-YOLOv3/README.md)
-5. [Street Light Detection and Recognition](./Activity5-Street-Light-Detection/README.md)
-6. [Instrument Cluster Development](./Activity6-Instrument-Cluster/README.md)
-7. [Integration of All Systems](./Activity7-Integration/README.md)
+| | Activity | Status | Run |
+|---|---|---|---|
+| 1 | [Lane Detection](./Activity1-Lane-Detection/README.md) | ✅ lanes + departure warning | `-p lane_detection` |
+| 2 | [Traffic Sign Recognition](./Activity2-Traffic-Sign-Recognition/README.md) | ✅ 98% on the bundled GTSRB test images | `-p traffic_sign_recognition` |
+| 3 | [Speed Limit Recognition](./Activity3-Speed-Limit-Recognition/README.md) | ✅ multi-frame confirmation | `-p speed_limit_recognition` |
+| 4 | [Object Detection using YOLOv3](./Activity4-Object-Detection-YOLOv3/README.md) | ⏳ not started | |
+| 5 | [Street Light Detection and Recognition](./Activity5-Street-Light-Detection/README.md) | ⏳ not started | |
+| 6 | [Instrument Cluster Development](./Activity6-Instrument-Cluster/README.md) | ✅ rendered cluster | `-p instrument_cluster` |
+| 7 | [Integration of All Systems](./Activity7-Integration/README.md) | ✅ lanes + signs + cluster on video | `-p adas_drive` |
+
+## 🏗 How it fits together
+
+```
+adas-core/            shared library, used by every activity
+  lanes.rs            paint mask → Canny → ROI → banded Hough → smoothing → departure
+  classifier.rs       GTSRB CNN (ONNX) run by tract, pure Rust
+  speed.rs            speed-limit tracker: votes over frames, "end of limit" signs
+  cluster.rs          the instrument cluster
+  render.rs           drawing (tiny-skia), text (ab_glyph), German road signs
+  video.rs            video in/out through ffmpeg, or image folders
+Activity*/            one small binary each
+data/                 model, 51 GTSRB test images + labels, downloaded clips
+```
 
 ## ⚙ Technologies
 
-- **Programming Language**: Rust
-- **Machine Learning Libraries**: Custom implementations tailored for Rust
-- **Other Libraries**: [Specify if applicable]
-- **Data Sources**: [Specify if applicable]
+- **Language**: Rust (one Cargo workspace, `Cargo.lock` committed)
+- **Inference**: [tract](https://github.com/sonos/tract) runs the Keras CNN exported to ONNX
+- **Image processing**: [image](https://crates.io/crates/image), [imageproc](https://crates.io/crates/imageproc) (Canny), a small custom Hough transform
+- **Drawing**: [tiny-skia](https://crates.io/crates/tiny-skia), [ab_glyph](https://crates.io/crates/ab_glyph) with Barlow Semi Condensed (OFL)
+- **Video**: the `ffmpeg` command-line tool
+- **Data**: [GTSRB](https://benchmark.ini.rub.de/) traffic signs; dashcam clips from [Udacity's lane-lines project](https://github.com/udacity/CarND-LaneLines-P1) (MIT)
 
-## 🚀 Quick Start
+## 📊 What the model can and cannot read
 
-[Provide instructions for setting up and running]
+The classifier is a small CNN trained on GTSRB photos. On the 51 bundled GTSRB test images it gets **50/51 (98%)**, and 21/21 on photographed German signs. Two honest caveats, both handled in the code:
+
+- **It is ~100% confident even when wrong**, so a speed limit is only changed when several frames agree *and* the winner clearly beats the runner-up. If readings flip-flop, the old limit stays: missing a sign is safer than switching to a wrong one.
+- **It generalises unevenly to synthetic signs.** Run `cargo run --release -p adas-core --example sign_probe`: it reads rendered 20, 30, 70 and 80 signs reliably, 120 mostly, and 50, 60 and 100 poorly. The drive demo's default route uses signs it can read.
 
 ## 📃 License
 
-This project is licensed under [MIT License](./LICENSE).
+This project is licensed under [MIT License](./LICENSE). The Barlow font is under the SIL Open Font License (`assets/fonts/OFL-Barlow.txt`). The sample clips are © Udacity, MIT licence.

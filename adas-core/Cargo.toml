@@ -1,0 +1,15 @@
+[package]
+name = "adas-core"
+version = "0.2.0"
+description = "Shared building blocks for the ADAS activities: lanes, signs, speed limits, cluster, video I/O"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+image.workspace = true
+imageproc.workspace = true
+tiny-skia.workspace = true
+ab_glyph.workspace = true
+tract-onnx.workspace = true

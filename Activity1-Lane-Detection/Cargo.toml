@@ -1,10 +1,13 @@
 [package]
-name = "lane_detection_adas"
-version = "0.1.0"
-edition = "2021"
+name = "lane_detection"
+version = "0.2.0"
+description = "Activity 1: lane detection and lane-departure warning on dashcam video"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
 
 [dependencies]
-opencv = "0.85.3"
-
-[features]
-default = []
+adas-core.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+image.workspace = true

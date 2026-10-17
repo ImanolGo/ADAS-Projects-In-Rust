@@ -1,111 +1,88 @@
-// Import necessary opencv modules
-extern crate opencv;
+//! Activity 1: lane detection and lane-departure warning on a dashcam video.
+//!
+//! ```text
+//! cargo run --release -p lane_detection -- --output output/lanes.mp4
+//! cargo run --release -p lane_detection -- --input data/challenge.mp4 --output lanes.gif --debug
+//! ```
 
-use opencv::{
-    core,           // Core functionality, basic data structures
-    highgui,        // GUI functionalities, displaying images and video
-    imgproc,        // Image processing functions
-    videoio,        // Video I/O, reading and writing video
-    prelude::*,     // Commonly used traits and types for OpenCV in Rust
-};
+use std::path::PathBuf;
+use std::time::Instant;
 
-fn main() -> opencv::Result<()> {
-    // Initialize a video capture from the given video file
-    let mut cap = videoio::VideoCapture::from_file("../data/video.mp4", videoio::CAP_ANY)?;
-    
-    // Check if the video was opened successfully
-    if !cap.is_opened()? {
-        println!("Could not open video file.");
-        return Ok(());
+use adas_core::lanes::{Departure, LaneDetector};
+use adas_core::overlay;
+use adas_core::paths;
+use adas_core::render::{self, Fonts};
+use adas_core::video::{FrameSink, FrameSource};
+use anyhow::Result;
+use clap::Parser;
+
+#[derive(Parser)]
+#[command(about = "Detect lanes and warn about lane departure in a dashcam video")]
+struct Args {
+    /// Video file or folder of frames (default: data/video.mp4).
+    #[arg(long)]
+    input: Option<PathBuf>,
+    /// Where to write the annotated result: .mp4, .webm, .gif, or a folder of PNGs.
+    #[arg(long, default_value = "output/lanes.mp4")]
+    output: PathBuf,
+    /// Start this many seconds into the video.
+    #[arg(long)]
+    start: Option<f32>,
+    /// Only process this many seconds.
+    #[arg(long)]
+    duration: Option<f32>,
+    /// Show the edge map the detector works on, top right.
+    #[arg(long)]
+    debug: bool,
+}
+
+fn main() -> Result<()> {
+    let args = Args::parse();
+    let input = args.input.unwrap_or_else(paths::default_video);
+    let source = FrameSource::open(&input, args.start, args.duration, 25.0)?;
+    let info = source.info();
+    let mut sink = FrameSink::create(&args.output, info.width, info.height, info.fps)?;
+    let mut detector = LaneDetector::default();
+    let fonts = Fonts::load();
+
+    let (mut frames, mut both, mut departures) = (0usize, 0usize, 0usize);
+    let started = Instant::now();
+    for frame in source {
+        let mut frame = frame?;
+        let lanes = detector.detect(&frame);
+        frames += 1;
+        both += usize::from(lanes.left.is_some() && lanes.right.is_some());
+        departures += usize::from(lanes.departure != Departure::None);
+
+        if args.debug {
+            let scale = (frame.width() as f32 / detector.config.work_width as f32).max(1.0);
+            let small = image::imageops::resize(
+                &frame,
+                (frame.width() as f32 / scale) as u32,
+                (frame.height() as f32 / scale) as u32,
+                image::imageops::FilterType::Triangle,
+            );
+            overlay::edges_inset(&mut frame, &detector.roi_edges(&small));
+        }
+        let mut pix = render::pixmap_from_rgb(&frame);
+        overlay::draw_lanes(&mut pix, &lanes);
+        let status = match (lanes.departure, lanes.offset) {
+            (Departure::Left, _) => "Drifting left".to_string(),
+            (Departure::Right, _) => "Drifting right".to_string(),
+            (Departure::None, Some(o)) => format!("Centred · offset {:+.0}% of lane", o * 100.0),
+            (Departure::None, None) => "Looking for lanes".to_string(),
+        };
+        overlay::caption(&mut pix, &fonts, &status);
+        sink.write(&render::rgb_from_pixmap(&pix))?;
     }
+    sink.finish()?;
 
-    // Declare matrices to hold various stages of image processing
-    let mut frame = core::Mat::default();      // Original frame from video
-    let mut gray = core::Mat::default();       // Grayscale version of the frame
-    let mut blurred = core::Mat::default();    // Blurred version for noise reduction
-    let mut edges = core::Mat::default();      // Edge-detected version
-    let mut masked_edges = core::Mat::default();// Edge-detected version with region of interest
-    let mut lines = core::Vector::<core::Vec4i>::new();  // Detected lines in the image
-
-    // Capture the first frame
-    cap.read(&mut frame)?;
-
-    // Define vertices of the region of interest (trapezoidal shape) for lane detection
-    let roi_vertices = [
-        core::Point::new(0, frame.rows()),                 // Bottom-left
-        core::Point::new(3*frame.cols() / 7, frame.rows() / 2 + frame.rows() / 12),   // Top-left
-        core::Point::new(9 * frame.cols() / 12, frame.rows() / 2 + frame.rows() / 12), // Top-right
-        core::Point::new(frame.cols(), frame.rows()),      // Bottom-right
-    ];
-
-
-    loop {
-        // Read a new frame from the video
-        cap.read(&mut frame)?;
-        
-        // If frame is empty (e.g., end of video), break the loop
-        if frame.size()?.width <= 0 {
-            break;
-        }
-
-
-        // Convert the original frame to grayscale for edge detection
-        imgproc::cvt_color(&frame, &mut gray, imgproc::COLOR_BGR2GRAY, 0)?;
-        
-        // Apply Gaussian blur for noise reduction
-        imgproc::gaussian_blur(&gray, &mut blurred, core::Size::new(5, 5), 1.5, 1.5, core::BORDER_DEFAULT)?;
-        
-        // Apply the Canny edge detection on the blurred image
-        imgproc::canny(&blurred, &mut edges, 50.0, 150.0, 3, false)?;
-
-        // Create a mask to extract the region of interest
-        let size = edges.size()?;
-        let mut mask = core::Mat::new_rows_cols_with_default(size.height, size.width, opencv::core::CV_8UC1, core::Scalar::all(0.0))?;
-
-        // let pts = &[core::Point::new(0, size.height),
-        //     core::Point::new(size.width, size.height),
-        //     core::Point::new(size.width / 2, size.height / 2)];
-        let pts = &roi_vertices;
-
-        
-        // Fill the region of interest in the mask with white (255)
-        imgproc::fill_poly(
-            &mut mask, 
-            &core::Vector::<core::Vector::<core::Point_<i32>>>::from_iter([core::Vector::from_iter(pts.to_vec())].iter().cloned()),
-            core::Scalar::new(255.0, 255.0, 255.0, 255.0),
-            8,
-            0,
-            core::Point::new(0, 0)
-        )?;
-        
-        
-        // highgui::imshow("ROI Mask", &mask)?;
-        // highgui::wait_key(0)?;
-
-        
-        
-       // Apply the mask to the edge-detected image to keep only the region of interest
-       core::bitwise_and(&edges, &mask, &mut masked_edges, &core::Mat::default())?;
-
-       // Detect lines in the masked image using the Hough transform
-       imgproc::hough_lines_p(&masked_edges, &mut lines, 1.0, core::CV_PI / 180.0, 50, 50.0, 10.0)?;
-
-
-       // Draw detected lines on the original frame
-        for line in lines.iter() {
-            imgproc::line(&mut frame, core::Point::new(line[0], line[1]), core::Point::new(line[2], line[3]), core::Scalar::new(0.0, 255.0, 0.0, 0.0), 2, imgproc::LINE_8, 0)?;
-        }
-    
-
-       // Display the frame with detected lines
-       highgui::imshow("Lane Detection", &mut frame)?;
-
-        // Wait for 10ms and exit loop if a key is pressed
-        if highgui::wait_key(10)? > 0 {
-            break;
-        }
-    }
-
-    // Return result
+    let secs = started.elapsed().as_secs_f32();
+    println!(
+        "{frames} frames in {secs:.1}s ({:.0} fps). Both lanes found in {:.0}% of frames, departure warnings in {departures}.",
+        frames as f32 / secs.max(1e-3),
+        100.0 * both as f32 / frames.max(1) as f32
+    );
+    println!("Wrote {}", args.output.display());
     Ok(())
 }
