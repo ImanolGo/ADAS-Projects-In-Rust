@@ -1,2 +1,4 @@
-tensorflow==2.3
-keras2onnx==1.7.0
+# Only needed to re-export the ONNX model from the Keras .h5 (scripts/convert_model.py).
+# tf2onnx 1.16 supports TensorFlow up to 2.15.
+tensorflow==2.15.*
+tf2onnx==1.16.1
