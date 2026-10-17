@@ -16,9 +16,9 @@ Speed Limit Recognition is a specialized subset of Traffic Sign Recognition syst
 ## 🛠 Technologies
 
 - **Programming Language**: Rust
-- **Computer Vision Library**: [Your Choice]
-- **Machine Learning / Deep Learning Libraries**: [Your Choice]
-- **Data Source**: [Public Dataset]
+- **Inference**: the Activity 2 classifier ([tract](https://github.com/sonos/tract))
+- **Logic**: `SpeedLimitTracker` in `adas-core/src/speed.rs`
+- **Data Source**: GTSRB, or the built-in `--demo` drive past rendered signs
 
 ## 📚 References
 
@@ -27,4 +27,18 @@ Speed Limit Recognition is a specialized subset of Traffic Sign Recognition syst
 
 ## 🏁 Getting Started
 
-[Provide setup and running instructions here]
+```bash
+cargo run --release -p speed_limit_recognition -- --demo           # no data needed
+cargo run --release -p speed_limit_recognition -- frames/          # your crops, in file-name order
+```
+
+### Why a tracker
+
+A classifier answers *"what is in this image?"*. A car needs *"what limit is in force now?"*. The tracker:
+
+- ignores predictions under `--min-confidence`;
+- changes the limit only when one reading has `--votes` of the last `--window` frames **and** leads the runner-up by `--margin`. This model reports ~100% confidence even when wrong, so one frame proves nothing;
+- understands **end-of-limit** signs (GTSRB classes 6 and 32). The first version treated them as "not a speed sign", so a limit could never be lifted;
+- keeps the old limit when readings flip-flop: missing a sign is safer than switching to a wrong one (tested in `a_flip_flopping_reading_keeps_the_old_limit`).
+
+The demo prints every frame, the moment each limit changes, and whether each sign ended up right.
